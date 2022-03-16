@@ -324,9 +324,6 @@ class OWFile(widget.OWWidget, RecentPathsWComboMixin):
         self.load_data()
 
     def select_reader(self, n):
-        if self.source != self.LOCAL_FILE:
-            return  # ignore for URL's
-
         if self.recent_paths:
             path = self.recent_paths[0]
             if n == 0:  # default
@@ -365,6 +362,7 @@ class OWFile(widget.OWWidget, RecentPathsWComboMixin):
             start_file = self.last_path() or os.path.expanduser("~/")
 
         filename, reader, _ = open_filename_dialog(start_file, None, self.available_readers)
+
         if not filename:
             return
         self.add_path(filename)
@@ -446,23 +444,28 @@ class OWFile(widget.OWWidget, RecentPathsWComboMixin):
         return None
 
     def _get_reader(self) -> FileFormat:
+        def get_reader_class():
+            # Used to get reader for local files and urls
+            qname = self.recent_paths[0].file_format
+            qname_index = {r.qualified_name(): i for i, r in enumerate(self.available_readers)}
+            if qname in qname_index:
+                self.reader_combo.setCurrentIndex(qname_index[qname] + 1)
+            else:
+                # reader may be accessible, but not in self.available_readers
+                # (perhaps its code was moved)
+                self.reader_combo.addItem(qname)
+                self.reader_combo.setCurrentIndex(len(self.reader_combo) - 1)
+            try:
+                reader_class_to_return = class_from_qualified_name(qname)
+            except Exception as ex:
+                raise MissingReaderException(f'Can not find reader "{qname}"') from ex
+            return reader_class_to_return
+
         if self.source == self.LOCAL_FILE:
             path = self.last_path()
             self.reader_combo.setEnabled(True)
             if self.recent_paths and self.recent_paths[0].file_format:
-                qname = self.recent_paths[0].file_format
-                qname_index = {r.qualified_name(): i for i, r in enumerate(self.available_readers)}
-                if qname in qname_index:
-                    self.reader_combo.setCurrentIndex(qname_index[qname] + 1)
-                else:
-                    # reader may be accessible, but not in self.available_readers
-                    # (perhaps its code was moved)
-                    self.reader_combo.addItem(qname)
-                    self.reader_combo.setCurrentIndex(len(self.reader_combo) - 1)
-                try:
-                    reader_class = class_from_qualified_name(qname)
-                except Exception as ex:
-                    raise MissingReaderException(f'Can not find reader "{qname}"') from ex
+                reader_class = get_reader_class()
                 reader = reader_class(path)
             else:
                 self.reader_combo.setCurrentIndex(0)
@@ -471,8 +474,13 @@ class OWFile(widget.OWWidget, RecentPathsWComboMixin):
                 reader.select_sheet(self.recent_paths[0].sheet)
             return reader
         else:
+            self.reader_combo.setEnabled(True)
             url = self.url_combo.currentText().strip()
-            return UrlReader(url)
+            url_reader = UrlReader(url)
+            if self.recent_paths and self.recent_paths[0].file_format:
+                reader_class = get_reader_class()
+                url_reader.url_selected_reader = reader_class
+            return url_reader
 
     def _update_sheet_combo(self):
         if len(self.reader.sheets) < 2:
@@ -499,6 +507,7 @@ class OWFile(widget.OWWidget, RecentPathsWComboMixin):
         filters = [format_filter(f) for f in self.available_readers]
         self.reader_combo.addItems([DEFAULT_READER_TEXT] + filters)
         self.reader_combo.setCurrentIndex(0)
+
         self.reader_combo.setDisabled(True)
         # additional readers may be added in self._get_reader()
 

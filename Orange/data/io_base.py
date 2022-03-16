@@ -783,7 +783,7 @@ class FileFormatBase(_FileReader, _FileWriter, metaclass=_FileFormatMeta):
                 if fnmatch(path.basename(filename), '*' + ext):
                     break
                 # glob uses fnmatch internally
-                matching_files = glob(absolute_filename + ext)
+                matching_files = glob(absolute_filename)
                 if matching_files:
                     absolute_filename = matching_files[0]
                     break

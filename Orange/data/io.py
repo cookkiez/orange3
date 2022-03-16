@@ -196,7 +196,7 @@ class CSVReader(FileFormat, DataTableMixin):
 
 class TabReader(CSVReader):
     """Reader for tab separated files"""
-    EXTENSIONS = ('.tab', '.tsv')
+    EXTENSIONS = ('.tab', '.tsv',)
     DESCRIPTION = 'Tab-separated values'
     DELIMITERS = '\t'
     PRIORITY = 10
@@ -204,7 +204,7 @@ class TabReader(CSVReader):
 
 class PickleReader(FileFormat):
     """Reader for pickled Table objects"""
-    EXTENSIONS = ('.pkl', '.pickle')
+    EXTENSIONS = ('.pkl', '.pickle',)
     DESCRIPTION = 'Pickled Orange data'
     SUPPORT_COMPRESSED = True
     SUPPORT_SPARSE_DATA = True
@@ -225,7 +225,7 @@ class PickleReader(FileFormat):
 
 class BasketReader(FileFormat):
     """Reader for basket (sparse) files"""
-    EXTENSIONS = ('.basket', '.bsk')
+    EXTENSIONS = ('.basket', '.bsk',)
     DESCRIPTION = 'Basket file'
     SUPPORT_SPARSE_DATA = True
 
@@ -393,7 +393,7 @@ class XlsReader(_BaseExcelReader):
 
 class DotReader(FileFormat):
     """Writer for dot (graph) files"""
-    EXTENSIONS = ('.dot', '.gv')
+    EXTENSIONS = ('.dot', '.gv',)
     DESCRIPTION = 'Dot graph description'
     SUPPORT_COMPRESSED = True
     SUPPORT_SPARSE_DATA = False
@@ -420,8 +420,9 @@ class UrlReader(FileFormat):
         def quote_byte(b):
             return chr(b) if b < 0x80 else '%{:02X}'.format(b)
 
-        filename = ''.join(map(quote_byte, filename.encode("utf-8")))
+        self.url_selected_reader = None
 
+        filename = ''.join(map(quote_byte, filename.encode("utf-8")))
         super().__init__(filename)
 
     @staticmethod
@@ -441,8 +442,10 @@ class UrlReader(FileFormat):
             with NamedTemporaryFile(suffix=extension, delete=False) as f:
                 f.write(response.read())
                 # delete=False is a workaround for https://bugs.python.org/issue14243
-
-            reader = self.get_reader(f.name)
+            if self.url_selected_reader:
+                reader = self.url_selected_reader(f.name)
+            else:
+                reader = self.get_reader(f.name)
             data = reader.read()
             remove(f.name)
         # Override name set in from_file() to avoid holding the temp prefix
